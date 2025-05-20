@@ -1,5 +1,4 @@
 import json
-from typing import Any
 
 import boto3
 
@@ -14,16 +13,6 @@ def scale_out(u: int, n: int) -> int:
     Lb = n * (u - U) / U
     return round(ALPHA * Lb + (1.0 - ALPHA) * Ub)
 
-def scale_in(u: int, n: int) -> int:
-    Lb = n * (L - u) / L
-    Ub = n * (U - u) / U
-    return round(ALPHA * Ub + (1.0 - ALPHA) * Lb)
-
-def daje(event: dict, context: dict):
-    isntance_id = event["alarmData"]["configuration"]["metrics"][0]["metricStat"]["metric"]["dimensions"]["InstanceId"]
-    u = event["alarmData"]["state"]["reasonData"]["recentDatapoints"][-1]
-    n = None
-
 def modify_alarm_out(instances:list[str], metrics:list[dict]):
     cloudwatch = boto3.client('cloudwatch')
 
@@ -35,7 +24,7 @@ def modify_alarm_out(instances:list[str], metrics:list[dict]):
             'MetricStat': {
                 'Metric': {
                     'Namespace': 'AWS/EC2',
-                    'MetricName': 'UpperBoundCpuUtilization',
+                    'MetricName': 'CpuUtilization',
                     'Dimensions': [
                         {
                             "Name": "InstanceId",
@@ -63,7 +52,7 @@ def modify_alarm_out(instances:list[str], metrics:list[dict]):
 
     # Creazione dell'allarme
     cloudwatch.put_metric_alarm(
-        AlarmName = 'Average_CPU_Utilization',
+        AlarmName = 'UpperBoundCpuUtilization',
         AlarmDescription = 'Allarme quando l\'utilizzo medio delle CPU supera il 50%',
         ActionsEnabled = True,
         EvaluationPeriods = 1,
@@ -87,7 +76,7 @@ def modify_alarm_in(instances: list[str], metrics: list[dict]):
             'MetricStat': {
                 'Metric': {
                     'Namespace': 'AWS/EC2',
-                    'MetricName': 'LowerBoundCpuUtilization',
+                    'MetricName': 'CpuUtilization',
                     'Dimensions': [
                         {
                             "Name": "InstanceId",
@@ -115,7 +104,7 @@ def modify_alarm_in(instances: list[str], metrics: list[dict]):
 
     # Creazione dell'allarme
     cloudwatch.put_metric_alarm(
-        AlarmName = 'Average_CPU_Utilization',
+        AlarmName = 'LowerBoundCpuUtilization',
         AlarmDescription = 'Allarme quando l\'utilizzo medio delle CPU è sotto il 20%',
         ActionsEnabled = True,
         EvaluationPeriods = 1,
@@ -155,11 +144,16 @@ def createEC2(n: int) ->list:
     )
 
     print(f'Gli ID delle istanze create è: {instances}')
+
+    for instance in instances:
+        instance.wait_until_running()
+        instance.reload()
+
     return instances
 
 
 
-def lambdaScaleOut(event: dict, context: dict):
+def lambda_handler(event, context):
     u = event["alarmData"]["state"]["reasonData"]["recentDatapoints"][-1]
     n = len(event["alarmData"]["configuration"]["metrics"])-1
     toAdd = scale_out(u, n)
@@ -172,18 +166,9 @@ def lambdaScaleOut(event: dict, context: dict):
     instances = createEC2(toAdd)
     modify_alarm_out(instances, event["alarmData"]["configuration"]["metrics"])
     modify_alarm_in(instances, event["alarmData"]["configuration"]["metrics"])
-
-    for instance in instances:
-        instance.wait_until_running()
-        instance.reload()
-
     add_to_loadbalancer(instances)
     return {
         'statusCode': 200,
         'body': json.dumps('Scale out done with success!')
     }
 
-
-if __name__ == '__main__':
-    print(scale_in(10, 5))
-    print(scale_out(60, 5))
