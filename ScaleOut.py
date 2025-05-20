@@ -158,7 +158,7 @@ def lambda_handler(event, context):
     accountId = event["accountId"]
     
     toAdd = scale_out(u, n)
-    if n <=0:
+    if toAdd <=0:
         return {
         'statusCode': 200,
         'body': json.dumps('Nothing to do!')
