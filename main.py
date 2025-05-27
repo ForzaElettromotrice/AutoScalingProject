@@ -1,12 +1,10 @@
 import json
-from typing import Any
 
 import boto3
 
-ACCOUNT_ID = 975049967346
 TARGET_ID = "d56e9f18cdf040d0"
-L = 20
-U = 50
+L = 20.0
+U = 50.0
 ALPHA = 0.75
 
 def scale_out(u: int, n: int) -> int:
@@ -19,15 +17,19 @@ def scale_in(u: int, n: int) -> int:
     Ub = n * (U - u) / U
     return round(ALPHA * Ub + (1.0 - ALPHA) * Lb)
 
-def daje(event: dict, context: dict):
-    isntance_id = event["alarmData"]["configuration"]["metrics"][0]["metricStat"]["metric"]["dimensions"]["InstanceId"]
-    u = event["alarmData"]["state"]["reasonData"]["recentDatapoints"][-1]
-    n = None
+def remove_expression(metrics: list[dict]):
+    idx = 0
+    for i in range(len(metrics)):
+        if "expression" in metrics[i]:
+            idx = i
+            break
 
-def modify_alarm_out(instances:list[str], metrics:list[dict]):
+    del metrics[idx]
+
+def modify_alarm_out(instances: list[str], metrics: list[dict], account_id: str):
     cloudwatch = boto3.client('cloudwatch')
 
-    del metrics[-1]
+    remove_expression(metrics)
 
     for idx, instance_id in enumerate(instances):
         metrics.append({
@@ -35,7 +37,7 @@ def modify_alarm_out(instances:list[str], metrics:list[dict]):
             'MetricStat': {
                 'Metric': {
                     'Namespace': 'AWS/EC2',
-                    'MetricName': 'UpperBoundCpuUtilization',
+                    'MetricName': 'CpuUtilization',
                     'Dimensions': [
                         {
                             "Name": "InstanceId",
@@ -53,7 +55,7 @@ def modify_alarm_out(instances:list[str], metrics:list[dict]):
     # Definizione dell'espressione matematica per calcolare la media
     expression = {
         'Id': 'e1',
-        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(instances))]) + '])',
+        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(metrics))]) + '])',
         'Label': 'Average CPU Utilization',
         'ReturnData': True
     }
@@ -63,23 +65,22 @@ def modify_alarm_out(instances:list[str], metrics:list[dict]):
 
     # Creazione dell'allarme
     cloudwatch.put_metric_alarm(
-        AlarmName = 'Average_CPU_Utilization',
-        AlarmDescription = 'Allarme quando l\'utilizzo medio delle CPU supera il 50%',
+        AlarmName = 'UpperBoundCpuUtilization',
+        AlarmDescription = f'Allarme quando l\'utilizzo medio delle CPU supera il {U}%',
         ActionsEnabled = True,
         EvaluationPeriods = 1,
-        Threshold = 50.0,
+        Threshold = U,
         ComparisonOperator = 'GreaterThanThreshold',
         Metrics = metrics,
         AlarmActions = [
-            f"arn:aws:lambda:us-east-1:{ACCOUNT_ID}:function:scaleOut"
+            f"arn:aws:lambda:us-east-1:{account_id}:function:scaleOut"
         ],
         TreatMissingData = 'missing'
     )
-
-def modify_alarm_in(instances: list[str], metrics: list[dict]):
+def modify_alarm_in(instances: list[str], metrics: list[dict], account_id: str):
     cloudwatch = boto3.client('cloudwatch')
 
-    del metrics[-1]
+    remove_expression(metrics)
 
     for idx, instance_id in enumerate(instances):
         metrics.append({
@@ -87,7 +88,7 @@ def modify_alarm_in(instances: list[str], metrics: list[dict]):
             'MetricStat': {
                 'Metric': {
                     'Namespace': 'AWS/EC2',
-                    'MetricName': 'LowerBoundCpuUtilization',
+                    'MetricName': 'CpuUtilization',
                     'Dimensions': [
                         {
                             "Name": "InstanceId",
@@ -105,7 +106,7 @@ def modify_alarm_in(instances: list[str], metrics: list[dict]):
     # Definizione dell'espressione matematica per calcolare la media
     expression = {
         'Id': 'e1',
-        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(instances))]) + '])',
+        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(metrics))]) + '])',
         'Label': 'Average CPU Utilization',
         'ReturnData': True
     }
@@ -115,24 +116,22 @@ def modify_alarm_in(instances: list[str], metrics: list[dict]):
 
     # Creazione dell'allarme
     cloudwatch.put_metric_alarm(
-        AlarmName = 'Average_CPU_Utilization',
-        AlarmDescription = 'Allarme quando l\'utilizzo medio delle CPU è sotto il 20%',
+        AlarmName = 'LowerBoundCpuUtilization',
+        AlarmDescription = f'Allarme quando l\'utilizzo medio delle CPU è sotto il {L}%',
         ActionsEnabled = True,
         EvaluationPeriods = 1,
-        Threshold = 20.0,
+        Threshold = L,
         ComparisonOperator = 'LessThanThreshold',
         Metrics = metrics,
         AlarmActions = [
-            f"arn:aws:lambda:us-east-1:{ACCOUNT_ID}:function:scaleIn"
+            f"arn:aws:lambda:us-east-1:{account_id}:function:scaleIn"
         ],
         TreatMissingData = 'missing'
     )
-
-def add_to_loadbalancer(instances:list[str]):
-
+def add_to_loadbalancer(instances: list[str], account_id: str):
     elbv2 = boto3.client('elbv2')
 
-    target_group_arn = f'arn:aws:elasticloadbalancing:us-east-1:{ACCOUNT_ID}:targetgroup/TargetTest/{TARGET_ID}'
+    target_group_arn = f'arn:aws:elasticloadbalancing:us-east-1:{account_id}:targetgroup/TargetTest/{TARGET_ID}'
 
     targets = [{ 'Id': instance_id } for instance_id in instances]
 
@@ -143,8 +142,21 @@ def add_to_loadbalancer(instances:list[str]):
     )
 
     print("Istanze registrate con successo:", response)
+def remove_from_loadbalancer(instances: list[str], account_id: str):
+    elbv2 = boto3.client('elbv2')
 
-def createEC2(n: int) ->list:
+    target_group_arn = f'arn:aws:elasticloadbalancing:us-east-1:{account_id}:targetgroup/TargetTest/{TARGET_ID}'
+
+    targets = [{ 'Id': instance_id } for instance_id in instances]
+
+    # Deregistra le istanze dal gruppo target
+    response = elbv2.deregister_targets(
+        TargetGroupArn = target_group_arn,
+        Targets = targets
+    )
+
+    print("Istanze deregistrate con successo:", response)
+def create_ec2(n: int) -> list:
     ec2 = boto3.resource('ec2', region_name = 'us-east-1')
 
     instances = ec2.create_instances(
@@ -154,36 +166,74 @@ def createEC2(n: int) ->list:
         MaxCount = n,
     )
 
-    print(f'Gli ID delle istanze create è: {instances}')
-    return instances
-
-
-
-def lambdaScaleOut(event: dict, context: dict):
-    u = event["alarmData"]["state"]["reasonData"]["recentDatapoints"][-1]
-    n = len(event["alarmData"]["configuration"]["metrics"])-1
-    toAdd = scale_out(u, n)
-    if n <=0:
-        return {
-        'statusCode': 200,
-        'body': json.dumps('Nothing to do!')
-    }
-
-    instances = createEC2(toAdd)
-    modify_alarm_out(instances, event["alarmData"]["configuration"]["metrics"])
-    modify_alarm_in(instances, event["alarmData"]["configuration"]["metrics"])
-
     for instance in instances:
         instance.wait_until_running()
         instance.reload()
 
-    add_to_loadbalancer(instances)
+    return instances
+
+def lambda_scale_out(n, u, account_id, metrics):
+    to_add = scale_out(u, n)
+    if n + to_add >= 9:
+        to_add = 9 - n
+
+    if to_add <= 0:
+        return {
+            'statusCode': 200,
+            'body': json.dumps('Nothing to do!')
+        }
+
+    instances = create_ec2(n)
+    modify_alarm_out(instances, metrics, account_id)
+    modify_alarm_in(instances, metrics, account_id)
+
+    add_to_loadbalancer(instances, account_id)
     return {
         'statusCode': 200,
         'body': json.dumps('Scale out done with success!')
     }
+def lambda_scale_in(n, u, account_id, metrics):
+    to_remove = scale_in(u, n)
+    if n - to_remove <= 0:
+        to_remove = n - 1
 
+    if to_remove <= 0:
+        return {
+            'statusCode': 200,
+            'body': json.dumps('Nothing to do!')
+        }
 
-if __name__ == '__main__':
-    print(scale_in(10, 5))
-    print(scale_out(60, 5))
+    ids = []
+    for i in range(to_remove):
+        ids.append(metrics[i]["metricStat"]["metric"]["dimensions"]["InstanceId"])
+
+    ec2 = boto3.resource('ec2', region_name = 'us-east-1')
+    ec2.terminate_instances(InstanceIds = ids)
+
+    metrics = metrics[to_remove:]
+
+    modify_alarm_out([], metrics, account_id)
+    modify_alarm_in([], metrics, account_id)
+
+    remove_from_loadbalancer(ids, account_id)
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Scale in done with success!')
+    }
+
+def lambda_handler(event, context):
+    u = event["alarmData"]["state"]["reasonData"]["recentDatapoints"][-1]
+    account_id = event["accountId"]
+    metrics = event["alarmData"]["configuration"]["metrics"]
+    n = len(metrics) - 1
+
+    if event["alarmData"]["alarmName"] == "UpperBoundCpuUtilization":
+        lambda_scale_out(n, u, account_id, metrics)
+    elif event["alarmData"]["alarmName"] == "LowerBoundCpuUtilization":
+        lambda_scale_in(n, u, account_id, metrics)
+    else:
+        return {
+            'statusCode': 400,
+            'body': json.dumps('Unknown alarm name!')
+        }
