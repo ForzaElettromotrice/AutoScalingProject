@@ -15,22 +15,34 @@
           "expression": "AVG([m1,m2])"
         },
         {
+          "id": "m1",
           "metricStat": {
             "metric": {
+              "namespace": "AWS/EC2",
+              "name": "CPUUtilization",
               "dimensions": {
                 "InstanceId": "i-06ca6247398b0dc0e"
               }
-            }
-          }
+            },
+            "period": 60,
+            "stat": "Average"
+          },
+          "returnData": false
         },
         {
+          "id": "m1",
           "metricStat": {
             "metric": {
+              "namespace": "AWS/EC2",
+              "name": "CPUUtilization",
               "dimensions": {
                 "InstanceId": "i-029d6469748e6f026"
               }
-            }
-          }
+            },
+            "period": 60,
+            "stat": "Average"
+          },
+          "returnData": false
         }
       ]
     }

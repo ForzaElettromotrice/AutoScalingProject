@@ -26,18 +26,17 @@ def remove_expression(metrics: list[dict]):
 
     del metrics[idx]
 
-def modify_alarm_out(instances: list[str], metrics: list[dict], account_id: str):
+def modify_alarm_out(instances: list[str], account_id: str):
     cloudwatch = boto3.client('cloudwatch')
-
-    remove_expression(metrics)
+    new_metrics = []
 
     for idx, instance_id in enumerate(instances):
-        metrics.append({
+        new_metrics.append({
             'Id': f'm{idx}',
             'MetricStat': {
                 'Metric': {
                     'Namespace': 'AWS/EC2',
-                    'MetricName': 'CpuUtilization',
+                    'MetricName': 'CPUUtilization',
                     'Dimensions': [
                         {
                             "Name": "InstanceId",
@@ -55,13 +54,15 @@ def modify_alarm_out(instances: list[str], metrics: list[dict], account_id: str)
     # Definizione dell'espressione matematica per calcolare la media
     expression = {
         'Id': 'e1',
-        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(metrics))]) + '])',
+        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(new_metrics))]) + '])',
         'Label': 'Average CPU Utilization',
         'ReturnData': True
     }
 
     # Aggiunta dell'espressione alla lista delle metriche
-    metrics.append(expression)
+    new_metrics.append(expression)
+
+    print(new_metrics)
 
     # Creazione dell'allarme
     cloudwatch.put_metric_alarm(
@@ -71,19 +72,18 @@ def modify_alarm_out(instances: list[str], metrics: list[dict], account_id: str)
         EvaluationPeriods = 1,
         Threshold = U,
         ComparisonOperator = 'GreaterThanThreshold',
-        Metrics = metrics,
+        Metrics = new_metrics,
         AlarmActions = [
             f"arn:aws:lambda:us-east-1:{account_id}:function:scaleOut"
         ],
         TreatMissingData = 'missing'
     )
-def modify_alarm_in(instances: list[str], metrics: list[dict], account_id: str):
+def modify_alarm_in(instances: list[str], account_id: str):
     cloudwatch = boto3.client('cloudwatch')
-
-    remove_expression(metrics)
+    new_metrics = []
 
     for idx, instance_id in enumerate(instances):
-        metrics.append({
+        new_metrics.append({
             'Id': f'm{idx}',
             'MetricStat': {
                 'Metric': {
@@ -106,13 +106,13 @@ def modify_alarm_in(instances: list[str], metrics: list[dict], account_id: str):
     # Definizione dell'espressione matematica per calcolare la media
     expression = {
         'Id': 'e1',
-        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(metrics))]) + '])',
+        'Expression': 'AVG([' + ','.join([f'm{idx}' for idx in range(len(new_metrics))]) + '])',
         'Label': 'Average CPU Utilization',
         'ReturnData': True
     }
 
     # Aggiunta dell'espressione alla lista delle metriche
-    metrics.append(expression)
+    new_metrics.append(expression)
 
     # Creazione dell'allarme
     cloudwatch.put_metric_alarm(
@@ -122,7 +122,7 @@ def modify_alarm_in(instances: list[str], metrics: list[dict], account_id: str):
         EvaluationPeriods = 1,
         Threshold = L,
         ComparisonOperator = 'LessThanThreshold',
-        Metrics = metrics,
+        Metrics = new_metrics,
         AlarmActions = [
             f"arn:aws:lambda:us-east-1:{account_id}:function:scaleIn"
         ],
@@ -183,9 +183,13 @@ def lambda_scale_out(n, u, account_id, metrics):
             'body': json.dumps('Nothing to do!')
         }
 
-    instances = create_ec2(n)
-    modify_alarm_out(instances, metrics, account_id)
-    modify_alarm_in(instances, metrics, account_id)
+    remove_expression(metrics)
+
+    instances = [instance.id for instance in create_ec2(to_add)]
+    instances.extend([metric["metricStat"]["metric"]["dimensions"]["InstanceId"] for metric in metrics])
+
+    modify_alarm_out(instances, account_id)
+    modify_alarm_in(instances, account_id)
 
     add_to_loadbalancer(instances, account_id)
     return {
@@ -203,17 +207,19 @@ def lambda_scale_in(n, u, account_id, metrics):
             'body': json.dumps('Nothing to do!')
         }
 
+    remove_expression(metrics)
+
     ids = []
     for i in range(to_remove):
         ids.append(metrics[i]["metricStat"]["metric"]["dimensions"]["InstanceId"])
 
-    ec2 = boto3.resource('ec2', region_name = 'us-east-1')
+    ec2 = boto3.client('ec2', region_name = 'us-east-1')
     ec2.terminate_instances(InstanceIds = ids)
 
-    metrics = metrics[to_remove:]
+    instances = [metric["metricStat"]["metric"]["dimensions"]["InstanceId"] for metric in metrics[to_remove:]]
 
-    modify_alarm_out([], metrics, account_id)
-    modify_alarm_in([], metrics, account_id)
+    modify_alarm_out(instances, account_id)
+    modify_alarm_in(instances, account_id)
 
     remove_from_loadbalancer(ids, account_id)
 
