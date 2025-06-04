@@ -160,10 +160,12 @@ def create_ec2(n: int) -> list:
     ec2 = boto3.resource('ec2', region_name = 'us-east-1')
 
     instances = ec2.create_instances(
-        ImageId = 'ami-0953476d60561c955',
+        ImageId = 'ami-041eaed69816f260a',
         InstanceType = 't2.micro',
         MinCount = n,
         MaxCount = n,
+        SubnetId = 'subnet-00d174113e459d337',
+        SecurityGroupIds = ['sg-0f56b43bd8d304e75']
     )
 
     for instance in instances:
