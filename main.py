@@ -231,10 +231,11 @@ def lambda_scale_in(n, u, account_id, metrics):
     }
 
 def lambda_handler(event, context):
+    event["alarmData"]["state"]["reasonData"] = json.loads(event["alarmData"]["state"]["reasonData"])
     u = event["alarmData"]["state"]["reasonData"]["recentDatapoints"][-1]
     account_id = event["accountId"]
     metrics = event["alarmData"]["configuration"]["metrics"]
-    n = len(metrics) - 1
+    n = max(1, len(metrics) - 1)
 
     if event["alarmData"]["alarmName"] == "UpperBoundCpuUtilization":
         lambda_scale_out(n, u, account_id, metrics)
