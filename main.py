@@ -78,7 +78,7 @@ def modify_alarm_out(instances: list[str], account_id: str):
         ComparisonOperator = 'GreaterThanThreshold',
         Metrics = new_metrics,
         AlarmActions = [
-            f"arn:aws:lambda:us-east-1:{account_id}:function:scaleOut"
+            f"arn:aws:lambda:us-east-1:{account_id}:function:autoScale"
         ],
         TreatMissingData = 'missing'
     )
@@ -128,7 +128,7 @@ def modify_alarm_in(instances: list[str], account_id: str):
         ComparisonOperator = 'LessThanThreshold',
         Metrics = new_metrics,
         AlarmActions = [
-            f"arn:aws:lambda:us-east-1:{account_id}:function:scaleIn"
+            f"arn:aws:lambda:us-east-1:{account_id}:function:autoScale"
         ],
         TreatMissingData = 'missing'
     )
