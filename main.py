@@ -92,7 +92,7 @@ def modify_alarm_in(instances: list[str], account_id: str):
             'MetricStat': {
                 'Metric': {
                     'Namespace': 'AWS/EC2',
-                    'MetricName': 'CpuUtilization',
+                    'MetricName': 'CPUUtilization',
                     'Dimensions': [
                         {
                             "Name": "InstanceId",
