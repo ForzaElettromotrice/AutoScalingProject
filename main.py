@@ -48,7 +48,7 @@ def modify_alarm_out(instances: list[str], account_id: str):
                         },
                     ]
                 },
-                'Period': 300,
+                'Period': 60,
                 'Stat': 'Average',
                 'Unit': 'Percent'
             },
@@ -100,7 +100,7 @@ def modify_alarm_in(instances: list[str], account_id: str):
                         },
                     ]
                 },
-                'Period': 300,
+                'Period': 60,
                 'Stat': 'Average',
                 'Unit': 'Percent'
             },
