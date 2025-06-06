@@ -137,7 +137,7 @@ def add_to_loadbalancer(instances: list[str], account_id: str):
 
     target_group_arn = f'arn:aws:elasticloadbalancing:us-east-1:{account_id}:targetgroup/TargetTest/{TARGET_ID}'
 
-    targets = [{ 'Id': instance_id } for instance_id in instances]
+    targets = [{ 'Id': instance_id, 'Port':5000 } for instance_id in instances]
 
     # Registra le istanze nel gruppo target
     response = elbv2.register_targets(
