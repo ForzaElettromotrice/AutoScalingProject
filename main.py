@@ -3,6 +3,9 @@ import json
 import boto3
 
 TARGET_ID = "d56e9f18cdf040d0"
+AMI_ID = "ami-041eaed69816f260a"
+SUBNET_ID = "subnet-00d174113e459d337"
+SECURIT_GROUP = "sg-0f56b43bd8d304e75"
 L = 20.0
 U = 50.0
 ALPHA = 0.75
@@ -161,12 +164,12 @@ def create_ec2(n: int) -> list:
     ec2 = boto3.resource('ec2', region_name = 'us-east-1')
 
     instances = ec2.create_instances(
-        ImageId = 'ami-041eaed69816f260a',
+        ImageId = AMI_ID,
         InstanceType = 't2.micro',
         MinCount = n,
         MaxCount = n,
-        SubnetId = 'subnet-00d174113e459d337',
-        SecurityGroupIds = ['sg-0f56b43bd8d304e75']
+        SubnetId = SUBNET_ID,
+        SecurityGroupIds = [SECURIT_GROUP]
     )
 
     for instance in instances:
