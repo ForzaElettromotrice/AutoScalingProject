@@ -82,6 +82,13 @@ def modify_alarm_out(instances: list[str], account_id: str):
         ],
         TreatMissingData = 'missing'
     )
+
+    cloudwatch.set_alarm_state(
+        AlarmName = "UpperBoundCpuUtilization",
+        StateValue = 'OK',
+        StateReason = 'Reset by watchdog Lambda'
+    )
+
 def modify_alarm_in(instances: list[str], account_id: str):
     cloudwatch = boto3.client('cloudwatch')
     new_metrics = []
@@ -131,6 +138,12 @@ def modify_alarm_in(instances: list[str], account_id: str):
             f"arn:aws:lambda:us-east-1:{account_id}:function:autoScale"
         ],
         TreatMissingData = 'missing'
+    )
+
+    cloudwatch.set_alarm_state(
+        AlarmName = "LowerBoundCpuUtilization",
+        StateValue = 'OK',
+        StateReason = 'Reset by watchdog Lambda'
     )
 def add_to_loadbalancer(instances: list[str], account_id: str):
     elbv2 = boto3.client('elbv2')
