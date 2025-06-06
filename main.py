@@ -18,12 +18,13 @@ def scale_in(u: int, n: int) -> int:
     return round(ALPHA * Ub + (1.0 - ALPHA) * Lb)
 
 def remove_expression(metrics: list[dict]):
-    idx = 0
+    idx = -1
     for i in range(len(metrics)):
         if "expression" in metrics[i]:
             idx = i
             break
-
+    if idx == -1:
+        return
     del metrics[idx]
 
 def modify_alarm_out(instances: list[str], account_id: str):
@@ -246,3 +247,7 @@ def lambda_handler(event, context):
             'statusCode': 400,
             'body': json.dumps('Unknown alarm name!')
         }
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Scaling done with success!')
+    }
