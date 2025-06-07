@@ -73,14 +73,15 @@ def modify_alarm_out(instances: list[str], account_id: str):
         AlarmName = 'UpperBoundCpuUtilization',
         AlarmDescription = f'Allarme quando l\'utilizzo medio delle CPU supera il {U}%',
         ActionsEnabled = True,
-        EvaluationPeriods = 1,
+        EvaluationPeriods = 4,
+        DatapointsToAlarm = 3,
         Threshold = U,
         ComparisonOperator = 'GreaterThanThreshold',
         Metrics = new_metrics,
         AlarmActions = [
             f"arn:aws:lambda:us-east-1:{account_id}:function:autoScale"
         ],
-        TreatMissingData = 'missing'
+        TreatMissingData = 'ignore'
     )
 
     cloudwatch.set_alarm_state(
@@ -130,14 +131,15 @@ def modify_alarm_in(instances: list[str], account_id: str):
         AlarmName = 'LowerBoundCpuUtilization',
         AlarmDescription = f'Allarme quando l\'utilizzo medio delle CPU è sotto il {L}%',
         ActionsEnabled = True,
-        EvaluationPeriods = 1,
+        EvaluationPeriods = 4,
+        DatapointsToAlarm = 3,
         Threshold = L,
         ComparisonOperator = 'LessThanThreshold',
         Metrics = new_metrics,
         AlarmActions = [
             f"arn:aws:lambda:us-east-1:{account_id}:function:autoScale"
         ],
-        TreatMissingData = 'missing'
+        TreatMissingData = 'ignore'
     )
 
     cloudwatch.set_alarm_state(
