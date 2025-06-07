@@ -3,9 +3,9 @@ import json
 import boto3
 
 TARGET_ID = "d56e9f18cdf040d0"
-AMI_ID = "ami-041eaed69816f260a"
-SUBNET_ID = "subnet-00d174113e459d337"
-SECURIT_GROUP = "sg-0f56b43bd8d304e75"
+AMI_ID = "ami-01ff17e1124558f93"
+SUBNET_ID = "subnet-04349a13491e0527a"
+SECURIT_GROUP = "sg-0b5dc8e00eb595254"
 L = 20.0
 U = 50.0
 ALPHA = 0.75
@@ -65,8 +65,6 @@ def modify_alarm_out(instances: list[str], account_id: str):
 
     # Aggiunta dell'espressione alla lista delle metriche
     new_metrics.append(expression)
-
-    print(new_metrics)
 
     # Creazione dell'allarme
     cloudwatch.put_metric_alarm(
@@ -160,7 +158,6 @@ def add_to_loadbalancer(instances: list[str], account_id: str):
         Targets = targets
     )
 
-    print("Istanze registrate con successo:", response)
 def remove_from_loadbalancer(instances: list[str], account_id: str):
     elbv2 = boto3.client('elbv2')
 
@@ -184,7 +181,10 @@ def create_ec2(n: int) -> list:
         MinCount = n,
         MaxCount = n,
         SubnetId = SUBNET_ID,
-        SecurityGroupIds = [SECURIT_GROUP]
+        SecurityGroupIds = [SECURIT_GROUP],
+        Monitoring = {
+        'Enabled': True  # Abilita la monitorizzazione avanzata
+        }
     )
 
     for instance in instances:
@@ -198,6 +198,7 @@ def lambda_scale_out(n, u, account_id, metrics):
     if n + to_add >= 9:
         to_add = 9 - n
 
+    print(f"to_add: {to_add}")
     if to_add <= 0:
         return {
             'statusCode': 200,
@@ -222,6 +223,7 @@ def lambda_scale_in(n, u, account_id, metrics):
     if n - to_remove <= 0:
         to_remove = n - 1
 
+    print(f"to_remove: {to_remove}")
     if to_remove <= 0:
         return {
             'statusCode': 200,
@@ -255,6 +257,8 @@ def lambda_handler(event, context):
     account_id = event["accountId"]
     metrics = event["alarmData"]["configuration"]["metrics"]
     n = max(1, len(metrics) - 1)
+
+    print(f"u: {u}\nn: {n}")
 
     if event["alarmData"]["alarmName"] == "UpperBoundCpuUtilization":
         lambda_scale_out(n, u, account_id, metrics)
