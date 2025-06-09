@@ -199,21 +199,20 @@ def lambda_scale_out(n, u, account_id, metrics):
         to_add = 9 - n
 
     print(f"to_add: {to_add}")
-    if to_add <= 0:
-        return {
-            'statusCode': 200,
-            'body': json.dumps('Nothing to do!')
-        }
 
     remove_expression(metrics)
 
-    instances = [instance.id for instance in create_ec2(to_add)]
+    if to_add <= 0:
+        instances = []
+    else:
+        instances = [instance.id for instance in create_ec2(to_add)]
     instances.extend([metric["metricStat"]["metric"]["dimensions"]["InstanceId"] for metric in metrics])
 
     modify_alarm_out(instances, account_id)
     modify_alarm_in(instances, account_id)
 
-    add_to_loadbalancer(instances, account_id)
+    if to_add > 0:
+        add_to_loadbalancer(instances, account_id)
     return {
         'statusCode': 200,
         'body': json.dumps('Scale out done with success!')
@@ -224,11 +223,6 @@ def lambda_scale_in(n, u, account_id, metrics):
         to_remove = n - 1
 
     print(f"to_remove: {to_remove}")
-    if to_remove <= 0:
-        return {
-            'statusCode': 200,
-            'body': json.dumps('Nothing to do!')
-        }
 
     remove_expression(metrics)
 
@@ -237,14 +231,16 @@ def lambda_scale_in(n, u, account_id, metrics):
         ids.append(metrics[i]["metricStat"]["metric"]["dimensions"]["InstanceId"])
 
     ec2 = boto3.client('ec2', region_name = 'us-east-1')
-    ec2.terminate_instances(InstanceIds = ids)
+    if len(ids) > 0:
+        ec2.terminate_instances(InstanceIds = ids)
 
     instances = [metric["metricStat"]["metric"]["dimensions"]["InstanceId"] for metric in metrics[to_remove:]]
 
     modify_alarm_out(instances, account_id)
     modify_alarm_in(instances, account_id)
 
-    remove_from_loadbalancer(ids, account_id)
+    if len(ids) > 0:
+        remove_from_loadbalancer(ids, account_id)
 
     return {
         'statusCode': 200,
